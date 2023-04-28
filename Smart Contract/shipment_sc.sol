@@ -4,75 +4,97 @@ pragma solidity ^0.8.13;
 contract Shipments {
 
     //TODOS
+    //source for enum with init state
     //require sTatements
             //plus feedback text
 
 //__________________________________________________________________________________________________________________________________
-    //Data for shipment
+    //Data for shipment -> all data needed for the shipment state
 
-    enum shipmentSteps{ Initialized,   //why init and created? because you have to check if the entry is already created or not
-                        Created,       //in a mapping, all entries exist and are initialized with 0/false, so creations starts with 1
-                        ReadyForPickup, 
-                        OnDelivery,
-                        StepReached, 
-                        ReadyForFinalDelivery, 
-                        OnFinalDelivery, 
-                        Arrived, 
-                        ShipmentDone }
+    //In a mapping with enums, solidity creates all possible values with 0, so if the state enum starts with 0
+    //the mapping creates all possible values with the first state. So the first state must be a "placeholder"
+    //and the actual state starts with the second enum value which is internally represented as 1.
 
+    //this enum contains every step that a shipment goes through the whole process from start to destination
+    enum shipmentSteps{ Initialized,                //0
+                        Created,                    //1
+                        ReadyForPickup,     	    //2
+                        OnDelivery,                 //3
+                        StepReached,                //4
+                        ReadyForFinalDelivery,      //5
+                        OnFinalDelivery,            //6
+                        Arrived,                    //7
+                        ShipmentDone }              //8
+
+    //this mapping contains the current shipping state for each shipment ID
     mapping(uint256 => shipmentSteps) shipmentStep;    
 
 //__________________________________________________________________________________________________________________________________
-    //Data for delivery
+    //Data for delivery -> all data needed for the delivery state
 
-    enum deliverySteps{ Initialized,
-                        ShipmentLoaded, 
-                        OnFirstIntermediateDelivery,
-                        OnMainDelivery,
-                        OnSecondIntermediateDelivery,
-                        DeliveryDone }
+    //In a mapping with enums, solidity creates all possible values with 0, so if the state enum starts with 0
+    //the mapping creates all possible values with the first state. So the first state must be a "placeholder"
+    //and the actual state starts with the second enum value which is internally represented as 1.
+
+    //this enum represents all possible steps for a delivery process from one place to another (e.g. warehouse A to warehouse B)
+    enum deliverySteps{ Initialized,                    //0
+                        ShipmentLoaded,                 //1  
+                        OnFirstIntermediateDelivery,    //2
+                        OnMainDelivery,                 //3
+                        OnSecondIntermediateDelivery,   //4
+                        DeliveryDone }                  //5
     
+    //this mapping contains the current delivery state for each shipment ID
     mapping(uint256 => deliverySteps) deliveryStep;
 
 //_________________________________ _________________________________________________________________________________________________
-    //Data for Route
+    //Data for Route -> all data needed for the route of a shipment
 
-    enum routeSteps{PickupLocation, 
-                    Truck,
-                    Plane,
-                    Ship,
-                    Train,
-                    Warehouse,
-                    Destination }
+    //an initial step is in this case not required, so we start with the first state at position 0
+    enum routeSteps{PickupLocation,         //0
+                    Truck,                  //1
+                    Plane,                  //2
+                    Ship,                   //3
+                    Train,                  //4
+                    Warehouse,              //5
+                    Destination }           //6
     
+    //this struct contains all data needed for one step in the route of a shipment
     struct stcRouteStep {
         routeSteps step;
         bool isPlace;
         bool done;
     }
 
+    //this mapping has an array of an undefined length with all steps needed to bring the shipment from
+    //the Pickup Location to the Destination (not necessary in the order or all values of the enum)
     mapping(uint256 => stcRouteStep[]) routes;
 
+    //since an array is needed for the route, it is necessary to keep track of the current step as index of the array
     mapping(uint256 => uint256) currentStepIndex;
 
 //__________________________________________________________________________________________________________________________________
-    //Initialization
+    //Initialization -> everything needed for the initialization when deployed
     constructor() {
-        
+        //currently nothing needed for the constructor
     }
 
 //__________________________________________________________________________________________________________________________________
-    //Entrypoints
+    //Entrypoints -> all functions that act as public entrypoints of the smart contract
+                        //without read-only getter-functions
 
     //create shipment
     function createShipment(uint256 _shipmentId) public returns(bool) {
-        require(shipmentStep[_shipmentId] == shipmentSteps.Initialized);
+        //Shipment has to be in state "Initialized" which means, that the shipment not yet exists
+        require(checkIfShipmentExists(_shipmentId), 'Shipment with this ID already exists.');
+
         shipmentStep[_shipmentId] = shipmentSteps.Created;
         return true;
     }
 
     //shipment packed 
     function shipmentPacked(uint256 _shipmentId) public {
+        require(shipmentStep[_shipmentId] == shipmentSteps.Created, 'Shipment already packed.');
         shipmentStep[_shipmentId] = shipmentSteps.ReadyForPickup;
     }
 
@@ -82,7 +104,7 @@ contract Shipments {
         routeSteps currStep = routeSteps(getCurrentStep(_shipmentId));
         routeSteps nextStep = routeSteps(getNextStep(_shipmentId));
 
-        require(shipmentStep[_shipmentId] != shipmentSteps.Initialized);
+        require(!checkIfShipmentExists(_shipmentId));
         require(shipmentStep[_shipmentId] != shipmentSteps.Created);
         require(shipmentStep[_shipmentId] != shipmentSteps.Arrived);
 
@@ -168,7 +190,7 @@ contract Shipments {
 
     //setRoute
     function setRoute(uint256 _shipmentId, routeSteps[] memory _route) public returns(bool) {
-        require(shipmentStep[_shipmentId] != shipmentSteps.Initialized);
+        require(!checkIfShipmentExists(_shipmentId));
         for (uint256 i = 0; i < _route.length; i++) {
             routes[_shipmentId].push(stcRouteStep(_route[i], isPlace(_route[i]), false));
         }
@@ -177,7 +199,7 @@ contract Shipments {
     }
 
 //__________________________________________________________________________________________________________________________________
-    //Shipment process steps
+    //Shipment -> all functions that work around the state of the shipment
 
     //shipment ready4pickup
     function pickupShipment(uint256 _shipmentId) private {
@@ -218,7 +240,7 @@ contract Shipments {
     }  
 
 //__________________________________________________________________________________________________________________________________
-    //DeliveryProcess
+    //Delivery Process -> all functions that work around the state of the delivery process
 
     //picked up
     function deliveryPickedUp(uint256 _shipmentId) private {
@@ -246,35 +268,7 @@ contract Shipments {
     }
 
 //__________________________________________________________________________________________________________________________________
-    //Route functions
-
-    //getFullRoute
-    function getFullRoute(uint256 _shipmentId) public view returns(routeSteps[] memory _route) {
-        routeSteps[] memory returnArray = new routeSteps[](routes[_shipmentId].length);
-
-        for (uint256 i = 0; i < routes[_shipmentId].length; i++) {
-            returnArray[i] = routes[_shipmentId][i].step;
-        }
-        
-        return returnArray;
-    }
-
-    //getCurrentStep
-    function getCurrentStep(uint256 _shipmentId) public view returns(routeSteps) {
-        return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
-    }
-    
-    //getNextStep
-    function getNextStep(uint256 _shipmentId) public view returns(routeSteps) {
-        if((routes[_shipmentId].length - 1) > currentStepIndex[_shipmentId]) {
-            return routes[_shipmentId][currentStepIndex[_shipmentId]+1].step;
-        } else {
-            return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
-        }
-    }
-
-//__________________________________________________________________________________________________________________________________
-    //Utils
+    //Route -> all functions that work around the route of a
 
     //check if step is a place
     function isPlace(routeSteps _step) private pure returns(bool) {
@@ -315,6 +309,37 @@ contract Shipments {
         }
         
     }
+
+//__________________________________________________________________________________________________________________________________
+    //Getter -> all read-only functions that return info
+
+    //getFullRoute
+    function getFullRoute(uint256 _shipmentId) public view returns(routeSteps[] memory _route) {
+        routeSteps[] memory returnArray = new routeSteps[](routes[_shipmentId].length);
+
+        for (uint256 i = 0; i < routes[_shipmentId].length; i++) {
+            returnArray[i] = routes[_shipmentId][i].step;
+        }
+        
+        return returnArray;
+    }
+
+    //getCurrentStep
+    function getCurrentStep(uint256 _shipmentId) public view returns(routeSteps) {
+        return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
+    }
+    
+    //getNextStep
+    function getNextStep(uint256 _shipmentId) public view returns(routeSteps) {
+        if((routes[_shipmentId].length - 1) > currentStepIndex[_shipmentId]) {
+            return routes[_shipmentId][currentStepIndex[_shipmentId]+1].step;
+        } else {
+            return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
+        }
+    }
+
+//__________________________________________________________________________________________________________________________________
+    //Utils -> utility functions for internal and public use
 
     //function called by the raspberry pi to check, if the shipment exist or not
     function checkIfShipmentExists(uint256 _shipmentId) public view returns(bool) {
