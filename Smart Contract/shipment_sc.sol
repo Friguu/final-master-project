@@ -5,8 +5,7 @@ contract Shipments {
 
     //TODOS
     //source for enum with init state
-    //require sTatements
-            //plus feedback text
+    //EVENTS
 
 //__________________________________________________________________________________________________________________________________
     //Data for shipment -> all data needed for the shipment state
@@ -20,7 +19,7 @@ contract Shipments {
                         Created,                    //1
                         ReadyForPickup,     	    //2
                         OnDelivery,                 //3
-                        StepReached,                //4
+                        WarehouseReached,           //4
                         ReadyForFinalDelivery,      //5
                         OnFinalDelivery,            //6
                         Arrived,                    //7
@@ -83,49 +82,60 @@ contract Shipments {
     //Entrypoints -> all functions that act as public entrypoints of the smart contract
                         //without read-only getter-functions
 
-    //create shipment
+    //This function acts as initial entrypoint which sets the "Created" state for the shipment ID
     function createShipment(uint256 _shipmentId) public returns(bool) {
         //Shipment has to be in state "Initialized" which means, that the shipment not yet exists
-        require(checkIfShipmentExists(_shipmentId), 'Shipment with this ID already exists.');
+        require(!checkIfShipmentExists(_shipmentId), 'Shipment with this ID already exists.');
 
         shipmentStep[_shipmentId] = shipmentSteps.Created;
         return true;
     }
 
-    //shipment packed 
+    //This function represents the next step in the process, when the shipment gets packed after creation
     function shipmentPacked(uint256 _shipmentId) public {
-        require(shipmentStep[_shipmentId] == shipmentSteps.Created, 'Shipment already packed.');
+        require(shipmentStep[_shipmentId] == shipmentSteps.Created, 'Shipment already packed or further in the process.');
         shipmentStep[_shipmentId] = shipmentSteps.ReadyForPickup;
     }
 
-    //move shipment
+    //For every other step in the shipping and delivery process, this function is the entrypoint
+    //Parameters:
+        //_shipmentId: Identifier of the shipment
+        //_stepType: 1 -> delivery process; 2 -> shipping process
     function shipmentMoved(uint256 _shipmentId, uint256 _stepType) public returns(bool) {
 
+        //Get the current and the next route step for further processing
         routeSteps currStep = routeSteps(getCurrentStep(_shipmentId));
         routeSteps nextStep = routeSteps(getNextStep(_shipmentId));
 
-        require(!checkIfShipmentExists(_shipmentId));
-        require(shipmentStep[_shipmentId] != shipmentSteps.Created);
-        require(shipmentStep[_shipmentId] != shipmentSteps.Arrived);
+        //Depending on the current state of the shipment, there are dedicated functions.
+        //So it has to be secured, that the shipment has the right state for this function
+        require(checkIfShipmentExists(_shipmentId), "Shipment does not exists. Please create and pack it first.");
+        require(shipmentStep[_shipmentId] != shipmentSteps.Created, "Shipment has to be packed first.");
+        require(shipmentStep[_shipmentId] != shipmentSteps.Arrived, "Shipment can't be moves because it already arrived");
 
-        //requires for DelID 1
+        //Requires for delivery process
         if (_stepType == 1) {
+            //For a delivery, the shipment state has to be "on delivery" or "on final delivery"
             require(shipmentStep[_shipmentId] == shipmentSteps.OnDelivery || 
-                        shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery);
+                    shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery, 
+                    "Shipment has to be on delivery to move further in the delivery process");
         } 
 
-        //requires for DelID 2
+        //Requires for shipping process
         if (_stepType == 2) {
-            require(deliveryStep[_shipmentId] == deliverySteps.DeliveryDone ||
-                        deliveryStep[_shipmentId] == deliverySteps.Initialized);
+            //To move further in the shipping process, the delivery process has to be finished
+            require(deliveryStep[_shipmentId] == deliverySteps.DeliveryDone, 
+                    "Delivery process has to be finished first.");
         } 
         
-        //Delivery ID = 1 -> delivery process
+        //Sep type = 1 -> delivery process
+        //Move the shipment further the delivery process
         if (_stepType == 1) {
-
+            
             if( currStep == routeSteps.Truck ) {
-
+                
                 if (deliveryStep[_shipmentId] == deliverySteps.ShipmentLoaded) {
+                    //A delivery by truck has no intermediate delivery step, so we set it to the main delivery
                     onMainDelivery(_shipmentId);
                     return true;
                 } else {
@@ -136,7 +146,9 @@ contract Shipments {
             } else if ( currStep == routeSteps.Plane || 
                         currStep == routeSteps.Ship || 
                         currStep == routeSteps.Train) {
-                
+
+                //For a delivery by Plan, Ship or Train we assume, that there has to be an
+                //intermediate delivery step, to get the package e.g. from the warehouse to the airport
                 if (deliveryStep[_shipmentId] == deliverySteps.ShipmentLoaded) {
                     onFirstIntermediateDelivery(_shipmentId);
                     return true;
@@ -153,9 +165,11 @@ contract Shipments {
 
             }
 
-        //Delivery ID = 2 -> shipment process 
+        //Delivery ID = 2 -> shipping process
+        //Move the shipment further the shipping process
         } else if (_stepType == 2) {
 
+            //Count up the step index to keep up the right index for the array to access the route steps
             if(currStep == routeSteps.PickupLocation) {
                 currentStepIndex[_shipmentId] += 1;
                 pickupShipment(_shipmentId);
@@ -168,7 +182,7 @@ contract Shipments {
                 return true;
             } else if(nextStep == routeSteps.Warehouse) {
                 currentStepIndex[_shipmentId] += 1;
-                stepReachedShipment(_shipmentId);
+                warehouseReachedShipment(_shipmentId);
                 return true;
             } else if (currStep == routeSteps.Destination) {
                 currentStepIndex[_shipmentId] += 1;
@@ -182,96 +196,156 @@ contract Shipments {
         
     }
 
-    //shipping done
+    //Change the state to done, when the shipping process is finished
+    //This function could also be called at any step of the process, e.g. when the order is cancelled
     function endShipment(uint256 _shipmentId) public returns(bool) {
         shipmentStep[_shipmentId] = shipmentSteps.ShipmentDone;
         return true;
     }
 
-    //setRoute
+    //Function to set the shipping route for a shipment
     function setRoute(uint256 _shipmentId, routeSteps[] memory _route) public returns(bool) {
-        require(!checkIfShipmentExists(_shipmentId));
+        //It is only possible to set a route, if a shipment has already been created
+        require(checkIfShipmentExists(_shipmentId), "Shipment has to be created first in order to set a route!");
+
+        //iterare through the input array and push each step to the mapping for the route
         for (uint256 i = 0; i < _route.length; i++) {
             routes[_shipmentId].push(stcRouteStep(_route[i], isPlace(_route[i]), false));
         }
         currentStepIndex[_shipmentId] = 0;
+
         return true;
     }
 
 //__________________________________________________________________________________________________________________________________
     //Shipment -> all functions that work around the state of the shipment
 
-    //shipment ready4pickup
+    //Internal function for when the shipment is picked up
     function pickupShipment(uint256 _shipmentId) private {
+        //A shipment can only be picked up, if it is ready to be picked up
+        require(shipmentStep[_shipmentId] == shipmentSteps.ReadyForPickup ||
+                shipmentStep[_shipmentId] == shipmentSteps.ReadyForFinalDelivery,
+                "Shipment not ready to be picked up!");
+
+        //Set state to on delivery
         shipmentStep[_shipmentId] = shipmentSteps.OnDelivery;
+        
+        //Start the delivery process
         deliveryStep[_shipmentId] = deliverySteps.ShipmentLoaded;
+
     }
         
-    //shipment on delivery
+    //Internal function to handle the shipment beeing on delivery
     function onDeliveryShipment(uint256 _shipmentId) private {
-        
+
+        //Set the step on final delivery or on delivery
         if (isFinalStep(_shipmentId)) {
             shipmentStep[_shipmentId] = shipmentSteps.OnFinalDelivery;
         } else {
             shipmentStep[_shipmentId] = shipmentSteps.OnDelivery;
         }
 
+        //Start the delivery process
         deliveryPickedUp(_shipmentId);
         
     }
 
-    //shipment step reached
-    function stepReachedShipment(uint256 _shipmentId) private {
+    //This internal function handles the situation, if a shipment reaches a warehouse
+    function warehouseReachedShipment(uint256 _shipmentId) private {
+        //A shipment can only reach a warehouse, if the delivery process is done and the
+        //shipment is currently on delivery
+        require(shipmentStep[_shipmentId] == shipmentSteps.OnDelivery ||
+                deliveryStep[_shipmentId] == deliverySteps.DeliveryDone,
+                "Delivery process not yet finished!");
 
+        //If the warehouse is the last place before the final delivery to the customer
+        //the shipment is ready for the final delivery
         if (isFinalStep(_shipmentId)) {
             shipmentStep[_shipmentId] = shipmentSteps.ReadyForFinalDelivery;
         } else {
-            shipmentStep[_shipmentId] = shipmentSteps.StepReached;
+            shipmentStep[_shipmentId] = shipmentSteps.WarehouseReached;
         }
 
+        //If the shipment reaches a warehouse, the delivery process is done and needs to be initialized again
         deliveryStep[_shipmentId] = deliverySteps.Initialized;
         
     }  
 
-    //shipment arrived
+    //Internal function for when the shipment arrived at its destination
     function arrivedShipment(uint256 _shipmentId) private {
+        require(shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery , 
+        "Shipment can only arrive, if it is on its final delivery!");
+
+        //Set the arrived state
         shipmentStep[_shipmentId] = shipmentSteps.Arrived;
+        //Reset the delivery process
         deliveryStep[_shipmentId] = deliverySteps.Initialized;
+
     }  
 
 //__________________________________________________________________________________________________________________________________
     //Delivery Process -> all functions that work around the state of the delivery process
 
-    //picked up
+    //Internal function to start the delivery process
     function deliveryPickedUp(uint256 _shipmentId) private {
+        //A shipment has to be "on delivery" to be loaded
+        require(shipmentStep[_shipmentId] == shipmentSteps.OnDelivery ||
+                shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery,
+                "Shipment has to be on delivery!");
+
         deliveryStep[_shipmentId] = deliverySteps.ShipmentLoaded;
+
     }
 
-    //OnFirstIntermediateDelivery
+    //Internal function for the first intermediate delivery
     function onFirstIntermediateDelivery(uint256 _shipmentId) private {
+
+        //To be on a delivery step, the shipment has to be loaded
+        require(deliveryStep[_shipmentId] == deliverySteps.ShipmentLoaded,
+                "Shipment has to be loaded to be on delivery!");
+
         deliveryStep[_shipmentId] = deliverySteps.OnFirstIntermediateDelivery;
+
     }
 
-    //OnMainDelivery
+    //Internal function for the main delivery
     function onMainDelivery(uint256 _shipmentId) private {
+        //To be on main delivery, the shipment has to be loaded or on first intermediate delivery
+        require(deliveryStep[_shipmentId] == deliverySteps.ShipmentLoaded ||
+                deliveryStep[_shipmentId] == deliverySteps.OnFirstIntermediateDelivery,
+                "Shipment not yet ready for main delivery!");
+
         deliveryStep[_shipmentId] = deliverySteps.OnMainDelivery;
+
     }
 
-    //OnSecondIntermediateDelivery
+    //Internal function for the second intermediate delivery
     function onSecondIntermediateDelivery(uint256 _shipmentId) private {
+        //To be on a delivery step, the shipment has to be loaded
+        require(deliveryStep[_shipmentId] == deliverySteps.OnMainDelivery,
+                "Shipment has to be on main delivery!");
+
         deliveryStep[_shipmentId] = deliverySteps.OnSecondIntermediateDelivery;
+
     }
 
-    //DeliveryDone
+    //Internal function to finalize the delivery
     function deliveryDone(uint256 _shipmentId) private {
+        //To finish the delivery process, the shipment has to be on main delivery or second intermediate delivery
+        require(deliveryStep[_shipmentId] == deliverySteps.OnMainDelivery ||
+                deliveryStep[_shipmentId] == deliverySteps.OnSecondIntermediateDelivery,
+                "Delivery process not yet ready to be finished!");
+
         deliveryStep[_shipmentId] = deliverySteps.DeliveryDone;
+
     }
 
 //__________________________________________________________________________________________________________________________________
-    //Route -> all functions that work around the route of a
+    //Route -> all functions that work around the route of a shipment
 
-    //check if step is a place
+    //Internal function to check if the given route step is a place or not
     function isPlace(routeSteps _step) private pure returns(bool) {
+
         if( _step == routeSteps.PickupLocation || 
             _step == routeSteps.Warehouse || 
             _step == routeSteps.Destination) {
@@ -284,64 +358,70 @@ contract Shipments {
         } else {
             return false;
         } 
+
     }
 
-    //check if the reached step is the final step
+    //Internal function to check if the shipment is currently on the final step.
     function isFinalStep(uint256 _shipmentId) private view returns(bool) {
+
+        //If the current index+2 extends the maximum of the route, it already is on its final delivery
+        require((currentStepIndex[_shipmentId] + 2) <= routes[_shipmentId].length-1, 
+                "Shipment already on its final delivery!");
         
-        bool x = false;
-        uint256 i = currentStepIndex[_shipmentId] + 1;
+        //Initialize variable with the index of the step after next
+        uint256 i = currentStepIndex[_shipmentId] + 2;
 
-        while (i <= routes[_shipmentId].length-1) {
-
-            if (routes[_shipmentId][i].isPlace && i == routes[_shipmentId].length-1) {
-                x = true;
-            } 
-
-            i++;
-
-        }
-
-        if(x) {
+        //When the route step after next is a place and the last step 
+        if (routes[_shipmentId][i].isPlace && i == routes[_shipmentId].length-1) {
+            //We know the next pace is the destination
             return true;
         } else {
             return false;
         }
-        
+           
     }
 
 //__________________________________________________________________________________________________________________________________
     //Getter -> all read-only functions that return info
 
-    //getFullRoute
+    //Getter function that returns an array with the full route set for a shipment
     function getFullRoute(uint256 _shipmentId) public view returns(routeSteps[] memory _route) {
+
+        //Initialize an array with the length of the array with the route steps
         routeSteps[] memory returnArray = new routeSteps[](routes[_shipmentId].length);
 
+        //Iterate through the whole route and pass it to the return array
         for (uint256 i = 0; i < routes[_shipmentId].length; i++) {
             returnArray[i] = routes[_shipmentId][i].step;
         }
         
         return returnArray;
+
     }
 
-    //getCurrentStep
+    //Getter function that returns the current step of a shipment
     function getCurrentStep(uint256 _shipmentId) public view returns(routeSteps) {
         return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
     }
     
-    //getNextStep
+    //Getter function that returns the next step of a shipment
     function getNextStep(uint256 _shipmentId) public view returns(routeSteps) {
+
+        //Take into account, that this function could be called when the last step is reached.
+        //To prevent accessing the array with an too high index, check if the current
+        //step index is lower than the highest index in the route array
         if((routes[_shipmentId].length - 1) > currentStepIndex[_shipmentId]) {
             return routes[_shipmentId][currentStepIndex[_shipmentId]+1].step;
-        } else {
+        } else { //If the shipment is on the last step in the array, just return the current step
             return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
         }
+
     }
 
 //__________________________________________________________________________________________________________________________________
     //Utils -> utility functions for internal and public use
 
-    //function called by the raspberry pi to check, if the shipment exist or not
+    //Public function to check if a shipment "exists" which means its not in "Initialized" state
     function checkIfShipmentExists(uint256 _shipmentId) public view returns(bool) {
 
         if (shipmentStep[_shipmentId] == shipmentSteps.Initialized) {
