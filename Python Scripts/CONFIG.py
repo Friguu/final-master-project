@@ -1,11 +1,7 @@
 #Chain Data Ethereum
-provider_url_eth = 'https://goerli.infura.io/v3/9a1872241b2d4248b4b074839c6d1832' #infura endpoint
-chain_id = 5
-contract_adress_eth = '0xc806d71f96eED5064Ad7AbE210Ad77d754C6B0CB'
-
-#Chain Data IOTA
-# provider_url_iota = 'https://api.sc.testnet.shimmer.network/evm/jsonrpc' #IOTA Shimmer
-# chain_id = 1076
+provider_url_eth = 'https://sepolia.infura.io/v3/7ed06f3d7d494083b61ac9ff1c572fac' #infura endpoint
+chain_id = 11155111
+contract_adress_eth = ''
 
 #Contract Data
 abi = [
@@ -191,6 +187,6 @@ abi = [
 	}
 ]
 
-#Wallet data
+#Wallet data -> test wallet, so it is fine if you see that! :)
 public_key = '0x6bff6f5646A64A24d4fd461563EAFA6E06DF6879'
 private_key = '501efcd8e089d6393e2fe04ad67518d5d65094eadb4c85509a4f8dbb026a9b0d'
