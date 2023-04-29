@@ -3,16 +3,17 @@ pragma solidity ^0.8.13;
 
 contract Shipments {
 
-    //TODOS
-    //source for enum with init state
-    //EVENTS
+//__________________________________________________________________________________________________________________________________
+    //Events
+
+    //Event emitted when a delivery step is reached
+    event deliveryStepReached(uint256 indexed _shipmentId, deliverySteps _step);
+
+    //Event emitted when a shipping step is reached
+    event shippingStepReached(uint256 indexed _shipmentId, shipmentSteps _step);
 
 //__________________________________________________________________________________________________________________________________
     //Data for shipment -> all data needed for the shipment state
-
-    //In a mapping with enums, solidity creates all possible values with 0, so if the state enum starts with 0
-    //the mapping creates all possible values with the first state. So the first state must be a "placeholder"
-    //and the actual state starts with the second enum value which is internally represented as 1.
 
     //this enum contains every step that a shipment goes through the whole process from start to destination
     enum shipmentSteps{ Initialized,                //0
@@ -31,11 +32,7 @@ contract Shipments {
 //__________________________________________________________________________________________________________________________________
     //Data for delivery -> all data needed for the delivery state
 
-    //In a mapping with enums, solidity creates all possible values with 0, so if the state enum starts with 0
-    //the mapping creates all possible values with the first state. So the first state must be a "placeholder"
-    //and the actual state starts with the second enum value which is internally represented as 1.
-
-    //this enum represents all possible steps for a delivery process from one place to another (e.g. warehouse A to warehouse B)
+    //This enum represents all possible steps for a delivery process from one place to another (e.g. warehouse A to warehouse B)
     enum deliverySteps{ Initialized,                    //0
                         ShipmentLoaded,                 //1  
                         OnFirstIntermediateDelivery,    //2
@@ -43,13 +40,13 @@ contract Shipments {
                         OnSecondIntermediateDelivery,   //4
                         DeliveryDone }                  //5
     
-    //this mapping contains the current delivery state for each shipment ID
+    //This mapping contains the current delivery state for each shipment ID
     mapping(uint256 => deliverySteps) deliveryStep;
 
 //_________________________________ _________________________________________________________________________________________________
     //Data for Route -> all data needed for the route of a shipment
 
-    //an initial step is in this case not required, so we start with the first state at position 0
+    //An initial step is in this case not required, so we start with the first state at position 0
     enum routeSteps{PickupLocation,         //0
                     Truck,                  //1
                     Plane,                  //2
@@ -58,24 +55,24 @@ contract Shipments {
                     Warehouse,              //5
                     Destination }           //6
     
-    //this struct contains all data needed for one step in the route of a shipment
+    //This struct contains all data needed for one step in the route of a shipment
     struct stcRouteStep {
         routeSteps step;
         bool isPlace;
         bool done;
     }
 
-    //this mapping has an array of an undefined length with all steps needed to bring the shipment from
+    //This mapping has an array of an undefined length with all steps needed to bring the shipment from
     //the Pickup Location to the Destination (not necessary in the order or all values of the enum)
     mapping(uint256 => stcRouteStep[]) routes;
 
-    //since an array is needed for the route, it is necessary to keep track of the current step as index of the array
+    //Since an array is needed for the route, it is necessary to keep track of the current step as index of the array
     mapping(uint256 => uint256) currentStepIndex;
 
 //__________________________________________________________________________________________________________________________________
     //Initialization -> everything needed for the initialization when deployed
     constructor() {
-        //currently nothing needed for the constructor
+        //Currently nothing needed for the constructor
     }
 
 //__________________________________________________________________________________________________________________________________
@@ -84,17 +81,27 @@ contract Shipments {
 
     //This function acts as initial entrypoint which sets the "Created" state for the shipment ID
     function createShipment(uint256 _shipmentId) public returns(bool) {
+
         //Shipment has to be in state "Initialized" which means, that the shipment not yet exists
         require(!checkIfShipmentExists(_shipmentId), 'Shipment with this ID already exists.');
 
         shipmentStep[_shipmentId] = shipmentSteps.Created;
+
+        emit shippingStepReached(_shipmentId, shipmentSteps.Created);
+
         return true;
+
     }
 
     //This function represents the next step in the process, when the shipment gets packed after creation
     function shipmentPacked(uint256 _shipmentId) public {
+
         require(shipmentStep[_shipmentId] == shipmentSteps.Created, 'Shipment already packed or further in the process.');
+
         shipmentStep[_shipmentId] = shipmentSteps.ReadyForPickup;
+
+        emit shippingStepReached(_shipmentId, shipmentSteps.ReadyForPickup);
+
     }
 
     //For every other step in the shipping and delivery process, this function is the entrypoint
@@ -199,12 +206,18 @@ contract Shipments {
     //Change the state to done, when the shipping process is finished
     //This function could also be called at any step of the process, e.g. when the order is cancelled
     function endShipment(uint256 _shipmentId) public returns(bool) {
+
         shipmentStep[_shipmentId] = shipmentSteps.ShipmentDone;
+
+        emit shippingStepReached(_shipmentId, shipmentSteps.ShipmentDone);
+
         return true;
+
     }
 
     //Function to set the shipping route for a shipment
     function setRoute(uint256 _shipmentId, routeSteps[] memory _route) public returns(bool) {
+
         //It is only possible to set a route, if a shipment has already been created
         require(checkIfShipmentExists(_shipmentId), "Shipment has to be created first in order to set a route!");
 
@@ -215,6 +228,7 @@ contract Shipments {
         currentStepIndex[_shipmentId] = 0;
 
         return true;
+
     }
 
 //__________________________________________________________________________________________________________________________________
@@ -222,16 +236,19 @@ contract Shipments {
 
     //Internal function for when the shipment is picked up
     function pickupShipment(uint256 _shipmentId) private {
+
         //A shipment can only be picked up, if it is ready to be picked up
         require(shipmentStep[_shipmentId] == shipmentSteps.ReadyForPickup ||
                 shipmentStep[_shipmentId] == shipmentSteps.ReadyForFinalDelivery,
                 "Shipment not ready to be picked up!");
 
-        //Set state to on delivery
+        //Set shipment state to on delivery
         shipmentStep[_shipmentId] = shipmentSteps.OnDelivery;
+        emit shippingStepReached(_shipmentId, shipmentSteps.OnDelivery);
         
         //Start the delivery process
         deliveryStep[_shipmentId] = deliverySteps.ShipmentLoaded;
+        emit deliveryStepReached(_shipmentId, deliverySteps.ShipmentLoaded);
 
     }
         
@@ -241,8 +258,10 @@ contract Shipments {
         //Set the step on final delivery or on delivery
         if (isFinalStep(_shipmentId)) {
             shipmentStep[_shipmentId] = shipmentSteps.OnFinalDelivery;
+            emit shippingStepReached(_shipmentId, shipmentSteps.OnFinalDelivery);
         } else {
             shipmentStep[_shipmentId] = shipmentSteps.OnDelivery;
+            emit shippingStepReached(_shipmentId, shipmentSteps.OnDelivery);
         }
 
         //Start the delivery process
@@ -252,6 +271,7 @@ contract Shipments {
 
     //This internal function handles the situation, if a shipment reaches a warehouse
     function warehouseReachedShipment(uint256 _shipmentId) private {
+
         //A shipment can only reach a warehouse, if the delivery process is done and the
         //shipment is currently on delivery
         require(shipmentStep[_shipmentId] == shipmentSteps.OnDelivery ||
@@ -262,8 +282,10 @@ contract Shipments {
         //the shipment is ready for the final delivery
         if (isFinalStep(_shipmentId)) {
             shipmentStep[_shipmentId] = shipmentSteps.ReadyForFinalDelivery;
+            emit shippingStepReached(_shipmentId, shipmentSteps.ReadyForFinalDelivery);
         } else {
             shipmentStep[_shipmentId] = shipmentSteps.WarehouseReached;
+            emit shippingStepReached(_shipmentId, shipmentSteps.WarehouseReached);
         }
 
         //If the shipment reaches a warehouse, the delivery process is done and needs to be initialized again
@@ -273,11 +295,15 @@ contract Shipments {
 
     //Internal function for when the shipment arrived at its destination
     function arrivedShipment(uint256 _shipmentId) private {
-        require(shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery , 
-        "Shipment can only arrive, if it is on its final delivery!");
+
+        //A shipment can only arrive the destination, if it is on its final delivery
+        require(shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery, 
+                "Shipment can only arrive, if it is on its final delivery!");
 
         //Set the arrived state
         shipmentStep[_shipmentId] = shipmentSteps.Arrived;
+        emit shippingStepReached(_shipmentId, shipmentSteps.Arrived);
+
         //Reset the delivery process
         deliveryStep[_shipmentId] = deliverySteps.Initialized;
 
@@ -288,12 +314,15 @@ contract Shipments {
 
     //Internal function to start the delivery process
     function deliveryPickedUp(uint256 _shipmentId) private {
+
         //A shipment has to be "on delivery" to be loaded
         require(shipmentStep[_shipmentId] == shipmentSteps.OnDelivery ||
                 shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery,
                 "Shipment has to be on delivery!");
 
         deliveryStep[_shipmentId] = deliverySteps.ShipmentLoaded;
+
+        emit deliveryStepReached(_shipmentId, deliverySteps.ShipmentLoaded);
 
     }
 
@@ -306,10 +335,13 @@ contract Shipments {
 
         deliveryStep[_shipmentId] = deliverySteps.OnFirstIntermediateDelivery;
 
+        emit deliveryStepReached(_shipmentId, deliverySteps.OnFirstIntermediateDelivery);
+
     }
 
     //Internal function for the main delivery
     function onMainDelivery(uint256 _shipmentId) private {
+
         //To be on main delivery, the shipment has to be loaded or on first intermediate delivery
         require(deliveryStep[_shipmentId] == deliverySteps.ShipmentLoaded ||
                 deliveryStep[_shipmentId] == deliverySteps.OnFirstIntermediateDelivery,
@@ -317,26 +349,34 @@ contract Shipments {
 
         deliveryStep[_shipmentId] = deliverySteps.OnMainDelivery;
 
+        emit deliveryStepReached(_shipmentId, deliverySteps.OnMainDelivery);
+
     }
 
     //Internal function for the second intermediate delivery
     function onSecondIntermediateDelivery(uint256 _shipmentId) private {
+
         //To be on a delivery step, the shipment has to be loaded
         require(deliveryStep[_shipmentId] == deliverySteps.OnMainDelivery,
                 "Shipment has to be on main delivery!");
 
         deliveryStep[_shipmentId] = deliverySteps.OnSecondIntermediateDelivery;
 
+        emit deliveryStepReached(_shipmentId, deliverySteps.OnSecondIntermediateDelivery);
+
     }
 
     //Internal function to finalize the delivery
     function deliveryDone(uint256 _shipmentId) private {
+
         //To finish the delivery process, the shipment has to be on main delivery or second intermediate delivery
         require(deliveryStep[_shipmentId] == deliverySteps.OnMainDelivery ||
                 deliveryStep[_shipmentId] == deliverySteps.OnSecondIntermediateDelivery,
                 "Delivery process not yet ready to be finished!");
 
         deliveryStep[_shipmentId] = deliverySteps.DeliveryDone;
+
+        emit deliveryStepReached(_shipmentId, deliverySteps.DeliveryDone);
 
     }
 
@@ -401,7 +441,9 @@ contract Shipments {
 
     //Getter function that returns the current step of a shipment
     function getCurrentStep(uint256 _shipmentId) public view returns(routeSteps) {
+
         return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
+        
     }
     
     //Getter function that returns the next step of a shipment
