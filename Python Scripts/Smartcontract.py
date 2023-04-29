@@ -9,9 +9,9 @@ class Smartcontract:
 
         # Initially connect to a blockchain network
         self.w3 = self.connect_to_network()
-
+        self.w3.eth.default_account = address
         # Create an instance of the smart contract
-        self.contract = self.w3.eth.contract(address=contract_adress_eth, abi = abi)        
+        self.contract = self.w3.eth.contract(address=contract_adress, abi = abi)        
 
     # Connects to the HTTP provider (Infura endpoint for Sepolia testnet)
     def connect_to_network(self):
@@ -25,31 +25,34 @@ class Smartcontract:
     # Calls the smart contract function to move a shipment 
     def call_move_shipment(self, shipment_id, step_type):
 
+        nonce = self.w3.eth.get_transaction_count(address)
+
         # Build an unsigned transaction with function call
-        tx = self.contract.functions.shipmentMoved(shipment_id, step_type).buildTransaction({
+        tx = self.contract.functions.shipmentMoved(shipment_id, step_type).build_transaction({
+                            "from": address,
+                            'gas': 200000,
                             "gasPrice": self.w3.eth.gas_price,
-                            "chainId": chain_id,
-                            "from": public_key,
-                            "nonce": self.w3.eth.getTransactionCount(public_key)
+                            "nonce": nonce
                         })
-        
+
         # Sign the transaction
         signed_tx = self.w3.eth.account.sign_transaction(tx, private_key)
+
         # Send the transaction and store transaction hash
         tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
         # Get transaction receipt with transaction hash
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
         print(tx_receipt)
-        
+
         return True
 
 
 def main():
-    pass
-    #sc = Smartcontract()
-    #print(sc.call_shipment_exists(1234))
-    #sc.get_shipment_hash(123)
+    sc = Smartcontract()
+    print(sc)
+    print(sc.call_shipment_exists(99))
+    print(sc.call_move_shipment(99, 1))
 
 if __name__ == '__main__':
     main()
