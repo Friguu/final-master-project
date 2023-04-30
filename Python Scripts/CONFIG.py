@@ -3,7 +3,7 @@ provider_url_eth = 'https://sepolia.infura.io/v3/7ed06f3d7d494083b61ac9ff1c572fa
 chain_id = 11155111
 
 # Contract Data
-contract_adress = '0x8b01EFbf59bBa6586e06761978391662bC881e68'
+contract_adress = '0xB4BFf3540DE414CCa17FB670899045780565272f'
 
 abi = [
 	{
