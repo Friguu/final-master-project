@@ -111,7 +111,7 @@ contract Shipments {
     function shipmentMoved(uint256 _shipmentId, uint256 _stepType) public returns(bool) {
 
         //Get the current and the next route step for further processing
-        routeSteps currStep = routeSteps(getCurrentStep(_shipmentId));
+        routeSteps currStep = routeSteps(getCurrShippingStep(_shipmentId));
         routeSteps nextStep = routeSteps(getNextStep(_shipmentId));
 
         //Depending on the current state of the shipment, there are dedicated functions.
@@ -439,10 +439,17 @@ contract Shipments {
 
     }
 
-    //Getter function that returns the current step of a shipment
-    function getCurrentStep(uint256 _shipmentId) public view returns(routeSteps) {
+    //Getter function that returns the current shipping step
+    function getCurrShippingStep(uint256 _shipmentId) public view returns(routeSteps) {
 
         return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
+        
+    }
+
+    //Getter function that returns the current delivery step
+    function getCurrDeliveryStep(uint256 _shipmentId) public view returns(deliverySteps) {
+
+        return deliveryStep[_shipmentId];
         
     }
     
