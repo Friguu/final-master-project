@@ -67,7 +67,7 @@ contract Shipments {
     mapping(uint256 => stcRouteStep[]) routes;
 
     //Since an array is needed for the route, it is necessary to keep track of the current step as index of the array
-    mapping(uint256 => uint256) currentStepIndex;
+    mapping(uint256 => uint256) public currentStepIndex;
 
 //__________________________________________________________________________________________________________________________________
     //Initialization -> everything needed for the initialization when deployed
@@ -112,7 +112,7 @@ contract Shipments {
 
         //Get the current and the next route step for further processing
         routeSteps currStep = routeSteps(getCurrShippingStep(_shipmentId));
-        routeSteps nextStep = routeSteps(getNextStep(_shipmentId));
+        routeSteps nextStep = routeSteps(getNextShippingStep(_shipmentId));
 
         //Depending on the current state of the shipment, there are dedicated functions.
         //So it has to be secured, that the shipment has the right state for this function
@@ -131,7 +131,8 @@ contract Shipments {
         //Requires for shipping process
         if (_stepType == 2) {
             //To move further in the shipping process, the delivery process has to be finished
-            require(deliveryStep[_shipmentId] == deliverySteps.DeliveryDone, 
+            require(deliveryStep[_shipmentId] == deliverySteps.Initialized ||
+                    deliveryStep[_shipmentId] == deliverySteps.DeliveryDone, 
                     "Delivery process has to be finished first.");
         } 
         
@@ -183,7 +184,8 @@ contract Shipments {
             } else if ( nextStep == routeSteps.Truck || 
                         nextStep == routeSteps.Plane || 
                         nextStep == routeSteps.Ship || 
-                        nextStep == routeSteps.Train) {
+                        nextStep == routeSteps.Train ||
+                        currStep == routeSteps.Warehouse ) {
                 currentStepIndex[_shipmentId] += 1;
                 onDeliveryShipment(_shipmentId);
                 return true;
@@ -191,7 +193,7 @@ contract Shipments {
                 currentStepIndex[_shipmentId] += 1;
                 warehouseReachedShipment(_shipmentId);
                 return true;
-            } else if (currStep == routeSteps.Destination) {
+            } else if (nextStep == routeSteps.Destination) {
                 currentStepIndex[_shipmentId] += 1;
                 arrivedShipment(_shipmentId);
                 return true;
@@ -405,11 +407,11 @@ contract Shipments {
     function isFinalStep(uint256 _shipmentId) private view returns(bool) {
 
         //If the current index+2 extends the maximum of the route, it already is on its final delivery
-        require((currentStepIndex[_shipmentId] + 2) <= routes[_shipmentId].length-1, 
+        require((currentStepIndex[_shipmentId] + 1) <= routes[_shipmentId].length-1, 
                 "Shipment already on its final delivery!");
         
         //Initialize variable with the index of the step after next
-        uint256 i = currentStepIndex[_shipmentId] + 2;
+        uint256 i = currentStepIndex[_shipmentId] + 1;
 
         //When the route step after next is a place and the last step 
         if (routes[_shipmentId][i].isPlace && i == routes[_shipmentId].length-1) {
@@ -454,7 +456,7 @@ contract Shipments {
     }
     
     //Getter function that returns the next step of a shipment
-    function getNextStep(uint256 _shipmentId) public view returns(routeSteps) {
+    function getNextShippingStep(uint256 _shipmentId) public view returns(routeSteps) {
 
         //Take into account, that this function could be called when the last step is reached.
         //To prevent accessing the array with an too high index, check if the current
@@ -465,6 +467,13 @@ contract Shipments {
             return routes[_shipmentId][currentStepIndex[_shipmentId]].step;
         }
 
+    }
+
+    //Getter function that returns the current state of the shipment
+    function getCurrShipmentState(uint256 _shipmentId) public view returns(shipmentSteps) {
+
+        return shipmentStep[_shipmentId];
+        
     }
 
 //__________________________________________________________________________________________________________________________________
