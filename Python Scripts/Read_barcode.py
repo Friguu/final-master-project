@@ -51,7 +51,7 @@ class Reader:
 
 def main(): 
     rd = Reader()
-    print(rd.get_step_type('asdafasdfgwse&&123'))
+    rd.read_serial()
 
 if __name__ == '__main__':
     main()

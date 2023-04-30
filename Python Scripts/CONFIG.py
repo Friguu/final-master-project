@@ -1,7 +1,7 @@
 #Chain Data Ethereum
 provider_url_eth = 'https://sepolia.infura.io/v3/7ed06f3d7d494083b61ac9ff1c572fac' #infura endpoint
 chain_id = 11155111
-contract_adress = '0xE905B380650430A6FA75229A6DCfF9dD357B34ac'
+contract_adress = '0x8CDE457a6388d7050CdA65f41fb5447Eb7686A1B'
 
 #Contract Data
 abi = [
@@ -14,6 +14,25 @@ abi = [
 			}
 		],
 		"name": "createShipment",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_shipmentId",
+				"type": "uint256"
+			}
+		],
+		"name": "endShipment",
 		"outputs": [
 			{
 				"internalType": "bool",
@@ -47,25 +66,6 @@ abi = [
 		],
 		"name": "deliveryStepReached",
 		"type": "event"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_shipmentId",
-				"type": "uint256"
-			}
-		],
-		"name": "endShipment",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "nonpayable",
-		"type": "function"
 	},
 	{
 		"inputs": [
@@ -170,11 +170,68 @@ abi = [
 		"inputs": [
 			{
 				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "currentStepIndex",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
 				"name": "_shipmentId",
 				"type": "uint256"
 			}
 		],
-		"name": "getCurrentStep",
+		"name": "getCurrDeliveryStep",
+		"outputs": [
+			{
+				"internalType": "enum Shipments.deliverySteps",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_shipmentId",
+				"type": "uint256"
+			}
+		],
+		"name": "getCurrShipmentState",
+		"outputs": [
+			{
+				"internalType": "enum Shipments.shipmentSteps",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_shipmentId",
+				"type": "uint256"
+			}
+		],
+		"name": "getCurrShippingStep",
 		"outputs": [
 			{
 				"internalType": "enum Shipments.routeSteps",
@@ -212,7 +269,7 @@ abi = [
 				"type": "uint256"
 			}
 		],
-		"name": "getNextStep",
+		"name": "getNextShippingStep",
 		"outputs": [
 			{
 				"internalType": "enum Shipments.routeSteps",

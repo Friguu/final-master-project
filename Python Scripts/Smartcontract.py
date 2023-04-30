@@ -49,10 +49,7 @@ class Smartcontract:
 
 
 def main():
-    sc = Smartcontract()
-    print(sc)
-    print(sc.call_shipment_exists(99))
-    print(sc.call_move_shipment(99, 1))
+    pass
 
 if __name__ == '__main__':
     main()
