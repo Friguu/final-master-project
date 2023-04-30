@@ -1,9 +1,10 @@
-#Chain Data Ethereum
+# Chain Data Ethereum
 provider_url_eth = 'https://sepolia.infura.io/v3/7ed06f3d7d494083b61ac9ff1c572fac' #infura endpoint
 chain_id = 11155111
+
+# Contract Data
 contract_adress = '0x2bC423Ef9a65501A592f721ef9Da1Cfda68F5E01'
 
-#Contract Data
 abi = [
 	{
 		"inputs": [

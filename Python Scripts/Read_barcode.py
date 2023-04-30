@@ -1,5 +1,5 @@
 import serial
-from Smartcontract import Smartcontract
+from Smart_contract import Smartcontract
 
 # This python script is meant to run on an raspberry pi that has an USB Barcode Scanner attached to the given port.
 # It is highly individualized to my personal setup. The react app offers the same functionality to try out the Smart Contract
