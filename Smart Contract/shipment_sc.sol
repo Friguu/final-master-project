@@ -38,7 +38,8 @@ contract Shipments {
                         OnFirstIntermediateDelivery,    //2
                         OnMainDelivery,                 //3
                         OnSecondIntermediateDelivery,   //4
-                        DeliveryDone }                  //5
+                        DeliveryDone,                   //5
+                        Arrived }                       //6
     
     //This mapping contains the current delivery state for each shipment ID
     mapping(uint256 => deliverySteps) deliveryStep;
@@ -210,6 +211,7 @@ contract Shipments {
     function endShipment(uint256 _shipmentId) public returns(bool) {
 
         shipmentStep[_shipmentId] = shipmentSteps.ShipmentDone;
+        deliveryStep[_shipmentId] = deliverySteps.Arrived;
 
         emit shippingStepReached(_shipmentId, shipmentSteps.ShipmentDone);
 
