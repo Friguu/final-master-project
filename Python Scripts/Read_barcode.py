@@ -24,6 +24,9 @@ class Reader:
 
             # There is not necessary data read, so we only want to process further if there is some read data
             if len(scanned_data) != 0:
+                print("Scanned data: ", scanned_data)
+                print("Shipment ID: ", self.get_shipment_id(scanned_data))
+                print("Step type: ", self.get_step_type(scanned_data))
                 # Check if the shipment of the scanned barcode exists
                 if self.shipment_exists(self.get_shipment_id(scanned_data)):
                     # Then moves the shipment -> assumes the shipment is created and packed
@@ -37,13 +40,13 @@ class Reader:
     def get_shipment_id(self, scanned_data):
         # String pattern of barcode data: SHIPMENTID&&STEPTYPE
         x = scanned_data.split('&&')
-        return x[0]
+        return int(x[0])
     
     # Extracts the step type of the barcode data
     def get_step_type(self, scanned_data):
         # String pattern of barcode data: SHIPMENTID&&STEPTYPE
         x = scanned_data.split('&&')
-        return x[1]
+        return int(x[1])
     
     # Calls the smart contract class to move the shipment
     def move_shipment(self, shipment_id, step_type):

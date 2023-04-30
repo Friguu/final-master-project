@@ -60,7 +60,6 @@ contract Shipments {
     struct stcRouteStep {
         routeSteps step;
         bool isPlace;
-        bool done;
     }
 
     //This mapping has an array of an undefined length with all steps needed to bring the shipment from
@@ -227,7 +226,7 @@ contract Shipments {
 
         //iterare through the input array and push each step to the mapping for the route
         for (uint256 i = 0; i < _route.length; i++) {
-            routes[_shipmentId].push(stcRouteStep(_route[i], isPlace(_route[i]), false));
+            routes[_shipmentId].push(stcRouteStep(_route[i], isPlace(_route[i])));
         }
         currentStepIndex[_shipmentId] = 0;
 
@@ -299,10 +298,6 @@ contract Shipments {
 
     //Internal function for when the shipment arrived at its destination
     function arrivedShipment(uint256 _shipmentId) private {
-
-        //A shipment can only arrive the destination, if it is on its final delivery
-        require(shipmentStep[_shipmentId] == shipmentSteps.OnFinalDelivery, 
-                "Shipment can only arrive, if it is on its final delivery!");
 
         //Set the arrived state
         shipmentStep[_shipmentId] = shipmentSteps.Arrived;
